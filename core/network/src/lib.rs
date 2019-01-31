@@ -20,6 +20,7 @@
 //! Substrate-specific P2P networking: synchronizing blocks, propagating BFT messages.
 //! Allows attachment of an optional subprotocol for chain-specific requests.
 
+extern crate dag;
 extern crate linked_hash_map;
 extern crate parking_lot;
 extern crate substrate_primitives as primitives;
