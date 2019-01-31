@@ -79,6 +79,7 @@ impl balances::Trait for Test {
 	type Event = MetaEvent;
 }
 impl Trait for Test {
+	type TransferToken = balances::Module<Self>;
 	type Call = Call;
 	type Gas = u64;
 	type DetermineContractAddress = DummyContractAddressFor;

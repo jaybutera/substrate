@@ -98,6 +98,7 @@ mod tests {
 		type Event = Event;
 	}
 	impl democracy::Trait for Test {
+		type Staking = balances::Module<Self>;
 		type Proposal = Call;
 		type Event = Event;
 	}

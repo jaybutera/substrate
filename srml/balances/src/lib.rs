@@ -47,7 +47,8 @@ use codec::Codec;
 use runtime_support::{StorageValue, StorageMap, Parameter};
 use runtime_support::dispatch::Result;
 use primitives::traits::{Zero, SimpleArithmetic, MakePayment,
-	As, StaticLookup, Member, CheckedAdd, CheckedSub};
+	As, StaticLookup, Member, CheckedAdd, CheckedSub, TransferToken,
+	UpdateBalanceOutcome, MaybeSerializeDebug, Staking};
 use system::{IsDeadAccount, OnNewAccount, ensure_signed};
 
 mod mock;
@@ -217,14 +218,6 @@ decl_storage! {
 	add_extra_genesis {
 		config(balances): Vec<(T::AccountId, T::Balance)>;
 	}
-}
-
-/// Outcome of a balance update.
-pub enum UpdateBalanceOutcome {
-	/// Account balance was simply updated.
-	Updated,
-	/// The update has led to killing of the account.
-	AccountKilled,
 }
 
 impl<T: Trait> Module<T> {
@@ -531,6 +524,80 @@ impl<T: Trait> Module<T> {
 		if let Some(v) = <Module<T>>::total_issuance().checked_sub(&value) {
 			<TotalIssuance<T>>::put(v);
 		}
+	}
+}
+
+impl<T: Trait> TransferToken<T::AccountId> for Module<T>
+where
+	T::Balance: MaybeSerializeDebug
+{
+	type Balance = T::Balance;
+	fn transaction_byte_fee() -> Self::Balance {
+		Self::transaction_byte_fee()
+	}
+	fn transaction_base_fee() -> Self::Balance {
+		Self::transaction_base_fee()
+	}
+	fn existential_deposit() -> Self::Balance {
+		Self::existential_deposit()
+	}
+	fn creation_fee() -> Self::Balance {
+		Self::creation_fee()
+	}
+	fn transfer_fee() -> Self::Balance {
+		Self::transfer_fee()
+	}
+	fn free_balance(who: &T::AccountId) -> Self::Balance {
+		Self::free_balance(who)
+	}
+	fn set_free_balance(who: &T::AccountId, value: Self::Balance) -> UpdateBalanceOutcome {
+		Self::set_free_balance(who, value)
+	}
+	fn increase_total_stake_by(value: Self::Balance) {
+		Self::increase_total_stake_by(value)
+	}
+	fn decrease_total_stake_by(value: Self::Balance) {
+		Self::decrease_total_stake_by(value)
+	}
+	fn ensure_account_liquid(who: &T::AccountId) -> result::Result<(), &'static str> {
+		<<T as Trait>::EnsureAccountLiquid as EnsureAccountLiquid<T::AccountId>>::ensure_account_liquid(who)
+	}
+	fn set_free_balance_creating(who: &T::AccountId, value: Self::Balance) -> UpdateBalanceOutcome {
+		Self::set_free_balance_creating(who, value)
+	}
+}
+
+impl<T: Trait> Staking<T::AccountId> for Module<T>
+where
+	T::Balance: MaybeSerializeDebug
+{
+	type Balance = T::Balance;
+	fn can_slash(who: &T::AccountId, value: Self::Balance) -> bool {
+		Self::can_slash(who, value)
+	}
+	fn repatriate_reserved(slashed: &T::AccountId, beneficiary: &T::AccountId, value: Self::Balance) -> result::Result<Option<Self::Balance>, &'static str> {
+		Self::repatriate_reserved(slashed, beneficiary, value)
+	}
+	fn reserve(who: &T::AccountId, value: Self::Balance) -> result::Result<(), &'static str> {
+		Self::reserve(who, value)
+	}
+	fn unreserve(who: &T::AccountId, value: Self::Balance) -> Option<Self::Balance> {
+		Self::unreserve(who, value)
+	}
+	fn reward(who: &T::AccountId, value: Self::Balance) -> result::Result<(), &'static str> {
+		Self::reward(who, value)
+	}
+	fn slash(who: &T::AccountId, value: Self::Balance) -> Option<Self::Balance> {
+		Self::slash(who, value)
+	}
+	fn slash_reserved(who: &T::AccountId, value: Self::Balance) -> Option<Self::Balance> {
+		Self::slash_reserved(who, value)
+	}
+	fn total_balance(who: &T::AccountId) -> Self::Balance {
+		Self::total_balance(who)
+	}
+	fn total_issuance() -> Self::Balance {
+		Self::total_issuance()
 	}
 }
 

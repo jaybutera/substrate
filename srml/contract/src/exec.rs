@@ -14,15 +14,13 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate. If not, see <http://www.gnu.org/licenses/>.
 
-use super::{CodeHash, Config, ContractAddressFor, Event, RawEvent, Trait};
+use super::{CodeHash, Config, ContractAddressFor, Event, RawEvent, Trait, BalanceOf};
 use crate::account_db::{AccountDb, DirectAccountDb, OverlayAccountDb};
 use crate::gas::{GasMeter, Token, approx_gas_for_balance};
 
-use balances::{self, EnsureAccountLiquid};
 use rstd::prelude::*;
-use runtime_primitives::traits::{CheckedAdd, CheckedSub, Zero};
+use runtime_primitives::traits::{CheckedAdd, CheckedSub, Zero, TransferToken};
 
-pub type BalanceOf<T> = <T as balances::Trait>::Balance;
 pub type AccountIdOf<T> = <T as system::Trait>::AccountId;
 pub type CallOf<T> = <T as Trait>::Call;
 
@@ -265,7 +263,7 @@ where
 	pub fn call(
 		&mut self,
 		dest: T::AccountId,
-		value: T::Balance,
+		value: BalanceOf<T>,
 		gas_meter: &mut GasMeter<T>,
 		input_data: &[u8],
 		empty_output_buf: EmptyOutputBuf,
@@ -290,7 +288,7 @@ where
 				dest.clone()
 			);
 
-			if value > T::Balance::zero() {
+			if value > BalanceOf::<T>::zero() {
 				transfer(
 					gas_meter,
 					TransferCause::Call,
@@ -331,7 +329,7 @@ where
 
 	pub fn instantiate(
 		&mut self,
-		endowment: T::Balance,
+		endowment: BalanceOf<T>,
 		gas_meter: &mut GasMeter<T>,
 		code_hash: &CodeHash<T>,
 		input_data: &[u8],
@@ -418,7 +416,7 @@ pub struct TransferFeeToken<Balance> {
 	gas_price: Balance,
 }
 
-impl<T: Trait> Token<T> for TransferFeeToken<T::Balance> {
+impl<T: Trait> Token<T> for TransferFeeToken<BalanceOf<T>> {
 	type Metadata = Config<T>;
 
 	#[inline]
@@ -459,7 +457,7 @@ fn transfer<'a, T: Trait, V: Vm<T>, L: Loader<T>>(
 	cause: TransferCause,
 	transactor: &T::AccountId,
 	dest: &T::AccountId,
-	value: T::Balance,
+	value: BalanceOf<T>,
 	ctx: &mut ExecutionContext<'a, T, V, L>,
 ) -> Result<(), &'static str> {
 	use self::TransferCause::*;
@@ -507,7 +505,7 @@ fn transfer<'a, T: Trait, V: Vm<T>, L: Loader<T>>(
 	if would_create && value < ctx.config.existential_deposit {
 		return Err("value too low to create account");
 	}
-	<T as balances::Trait>::EnsureAccountLiquid::ensure_account_liquid(transactor)?;
+	T::TransferToken::ensure_account_liquid(transactor)?;
 
 	let new_to_balance = match to_balance.checked_add(&value) {
 		Some(b) => b,
@@ -527,7 +525,7 @@ fn transfer<'a, T: Trait, V: Vm<T>, L: Loader<T>>(
 struct CallContext<'a, 'b: 'a, T: Trait + 'b, V: Vm<T> + 'b, L: Loader<T>> {
 	ctx: &'a mut ExecutionContext<'b, T, V, L>,
 	caller: T::AccountId,
-	value_transferred: T::Balance,
+	value_transferred: BalanceOf<T>,
 }
 
 impl<'a, 'b: 'a, T, E, V, L> Ext for CallContext<'a, 'b, T, V, L>
@@ -551,7 +549,7 @@ where
 	fn instantiate(
 		&mut self,
 		code_hash: &CodeHash<T>,
-		endowment: T::Balance,
+		endowment: BalanceOf<T>,
 		gas_meter: &mut GasMeter<T>,
 		input_data: &[u8],
 	) -> Result<InstantiateReceipt<AccountIdOf<T>>, &'static str> {
@@ -561,7 +559,7 @@ where
 	fn call(
 		&mut self,
 		to: &T::AccountId,
-		value: T::Balance,
+		value: BalanceOf<T>,
 		gas_meter: &mut GasMeter<T>,
 		input_data: &[u8],
 		empty_output_buf: EmptyOutputBuf,
@@ -585,11 +583,11 @@ where
 		&self.caller
 	}
 
-	fn balance(&self) -> T::Balance {
+	fn balance(&self) -> BalanceOf<T> {
 		self.ctx.overlay.get_balance(&self.ctx.self_account)
 	}
 
-	fn value_transferred(&self) -> T::Balance {
+	fn value_transferred(&self) -> BalanceOf<T> {
 		self.value_transferred
 	}
 }

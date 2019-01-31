@@ -124,6 +124,49 @@ pub trait BlockNumberToHash {
 	}
 }
 
+/// Outcome of a balance update.
+pub enum UpdateBalanceOutcome {
+	/// Account balance was simply updated.
+	Updated,
+	/// The update has led to killing of the account.
+	AccountKilled,
+}
+
+pub trait TransferToken<AccountId> {
+	type Balance: SimpleArithmetic + As<usize> + As<u64> + Codec + Copy + MaybeSerializeDebug + Default;
+	fn transaction_byte_fee() -> Self::Balance;
+	fn transaction_base_fee() -> Self::Balance;
+	fn existential_deposit() -> Self::Balance;
+	fn creation_fee() -> Self::Balance;
+	fn transfer_fee() -> Self::Balance;
+	fn free_balance(who: &AccountId) -> Self::Balance;
+	fn set_free_balance(who: &AccountId, value: Self::Balance) -> UpdateBalanceOutcome;
+	// TODO TODO: should be moved to Staking ?
+	fn increase_total_stake_by(value: Self::Balance);
+	// TODO TODO: should be moved to Staking ?
+	fn decrease_total_stake_by(value: Self::Balance);
+	fn set_free_balance_creating(who: &AccountId, value: Self::Balance) -> UpdateBalanceOutcome;
+	fn ensure_account_liquid(who: &AccountId) -> result::Result<(), &'static str>;
+
+	// TODO TODO: probably make decrease_free_balance autoimpl
+	fn increase_free_balance_creating(who: &AccountId, value: Self::Balance) -> UpdateBalanceOutcome {
+		Self::set_free_balance_creating(who, Self::free_balance(who) + value)
+	}
+}
+
+pub trait Staking<AccountId> {
+	type Balance: SimpleArithmetic + As<usize> + As<u64> + Codec + Copy + MaybeSerializeDebug + Default;
+	fn can_slash(who: &AccountId, value: Self::Balance) -> bool;
+	fn repatriate_reserved(slashed: &AccountId, beneficiary: &AccountId, value: Self::Balance) -> result::Result<Option<Self::Balance>, &'static str>;
+	fn reserve(who: &AccountId, value: Self::Balance) -> result::Result<(), &'static str>;
+	fn unreserve(who: &AccountId, value: Self::Balance) -> Option<Self::Balance>;
+	fn reward(who: &AccountId, value: Self::Balance) -> result::Result<(), &'static str>;
+	fn slash(who: &AccountId, value: Self::Balance) -> Option<Self::Balance>;
+	fn slash_reserved(who: &AccountId, value: Self::Balance) -> Option<Self::Balance>;
+	fn total_balance(who: &AccountId) -> Self::Balance;
+	fn total_issuance() -> Self::Balance;
+}
+
 /// Simple payment making trait, operating on a single generic `AccountId` type.
 pub trait MakePayment<AccountId> {
 	/// Make some sort of payment concerning `who` for an extrinsic (transaction) of encoded length

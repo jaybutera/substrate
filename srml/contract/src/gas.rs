@@ -14,9 +14,8 @@
 // You should have received a copy of the GNU General Public License
 // along with Substrate. If not, see <http://www.gnu.org/licenses/>.
 
-use crate::{GasSpent, Module, Trait};
-use balances;
-use runtime_primitives::traits::{As, CheckedMul, CheckedSub, Zero};
+use crate::{GasSpent, Module, Trait, BalanceOf};
+use runtime_primitives::traits::{As, CheckedMul, CheckedSub, Zero, TransferToken};
 use runtime_support::StorageValue;
 
 #[cfg(test)]
@@ -82,14 +81,14 @@ pub struct GasMeter<T: Trait> {
 	limit: T::Gas,
 	/// Amount of gas left from initial gas limit. Can reach zero.
 	gas_left: T::Gas,
-	gas_price: T::Balance,
+	gas_price: BalanceOf<T>,
 
 	#[cfg(test)]
 	tokens: Vec<ErasedToken>,
 }
 impl<T: Trait> GasMeter<T> {
 	#[cfg(test)]
-	pub fn with_limit(gas_limit: T::Gas, gas_price: T::Balance) -> GasMeter<T> {
+	pub fn with_limit(gas_limit: T::Gas, gas_price: BalanceOf<T>) -> GasMeter<T> {
 		GasMeter {
 			limit: gas_limit,
 			gas_left: gas_limit,
@@ -174,7 +173,7 @@ impl<T: Trait> GasMeter<T> {
 		}
 	}
 
-	pub fn gas_price(&self) -> T::Balance {
+	pub fn gas_price(&self) -> BalanceOf<T> {
 		self.gas_price
 	}
 
@@ -211,18 +210,18 @@ pub fn buy_gas<T: Trait>(
 
 	// Buy the specified amount of gas.
 	let gas_price = <Module<T>>::gas_price();
-	let b = <balances::Module<T>>::free_balance(transactor);
-	let cost = <T::Gas as As<T::Balance>>::as_(gas_limit.clone())
+	let b = T::TransferToken::free_balance(transactor);
+	let cost = <T::Gas as As<BalanceOf<T>>>::as_(gas_limit.clone())
 		.checked_mul(&gas_price)
 		.ok_or("overflow multiplying gas limit by price")?;
 
 	let new_balance = b.checked_sub(&cost);
-	if new_balance < Some(<balances::Module<T>>::existential_deposit()) {
+	if new_balance < Some(T::TransferToken::existential_deposit()) {
 		return Err("not enough funds for transaction fee");
 	}
 
-	<balances::Module<T>>::set_free_balance(transactor, b - cost);
-	<balances::Module<T>>::decrease_total_stake_by(cost);
+	T::TransferToken::set_free_balance(transactor, b - cost);
+	T::TransferToken::decrease_total_stake_by(cost);
 	Ok(GasMeter {
 		limit: gas_limit,
 		gas_left: gas_limit,
@@ -241,17 +240,17 @@ pub fn refund_unused_gas<T: Trait>(transactor: &T::AccountId, gas_meter: GasMete
 	<GasSpent<T>>::put(gas_spent);
 
 	// Refund gas left by the price it was bought.
-	let b = <balances::Module<T>>::free_balance(transactor);
-	let refund = <T::Gas as As<T::Balance>>::as_(gas_meter.gas_left) * gas_meter.gas_price;
-	<balances::Module<T>>::set_free_balance(transactor, b + refund);
-	<balances::Module<T>>::increase_total_stake_by(refund);
+	let b = T::TransferToken::free_balance(transactor);
+	let refund = <T::Gas as As<BalanceOf<T>>>::as_(gas_meter.gas_left) * gas_meter.gas_price;
+	T::TransferToken::set_free_balance(transactor, b + refund);
+	T::TransferToken::increase_total_stake_by(refund);
 }
 
 /// A little handy utility for converting a value in balance units into approximitate value in gas units
 /// at the given gas price.
-pub fn approx_gas_for_balance<T: Trait>(gas_price: T::Balance, balance: T::Balance) -> T::Gas {
-	let amount_in_gas: T::Balance = balance / gas_price;
-	<T::Gas as As<T::Balance>>::sa(amount_in_gas)
+pub fn approx_gas_for_balance<T: Trait>(gas_price: BalanceOf<T>, balance: BalanceOf<T>) -> T::Gas {
+	let amount_in_gas: BalanceOf<T> = balance / gas_price;
+	<T::Gas as As<BalanceOf<T>>>::sa(amount_in_gas)
 }
 
 /// A simple utility macro that helps to match against a
